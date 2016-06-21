@@ -172,7 +172,8 @@ window.Discourse = Ember.Application.extend(Discourse.Ajax, {
 
 
 Discourse.Markdown = {
-  whiteListTag: Ember.K
+  whiteListTag: Ember.K,
+  whiteListIframe: Ember.K
 };
 
 Discourse.Dialect = {
@@ -180,6 +181,6 @@ Discourse.Dialect = {
   addPreProcessor: Ember.K,
   replaceBlock: Ember.K,
   inlineReplace: Ember.K,
-  registerInline: Ember.K
+  registerInline: Ember.K,
+  registerEmoji: Ember.K
 };
-

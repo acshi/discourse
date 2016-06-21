@@ -1,5 +1,6 @@
-import groups from 'discourse/lib/emoji/emoji-groups';
+import groups from 'discourse/lib/emoji/groups';
 import KeyValueStore from "discourse/lib/key-value-store";
+import { emojiUrlFor, emojiList } from 'pretty-text/emoji';
 
 const keyValueStore = new KeyValueStore("discourse_emojis_");
 const EMOJI_USAGE = "emojiUsage";
@@ -26,7 +27,7 @@ function initializeUngroupedIcons() {
   });
 
   ungroupedIcons = [];
-  const emojis = Discourse.Emoji.list();
+  const emojis = emojiList();
   emojis.forEach(emoji => {
     if (groupedIcons[emoji] !== true) {
       ungroupedIcons.push(emoji);
@@ -90,7 +91,7 @@ function toolbar(selected) {
       title = "Custom";
     }
 
-    return { src: Discourse.Emoji.urlFor(icon),
+    return { src: emojiUrlFor(icon),
              title,
              groupId: i,
              selected: i === selected };
@@ -106,7 +107,7 @@ function bindEvents(page, offset, options) {
     return false;
   }).hover(e => {
     const title = $(e.currentTarget).attr('title');
-    const html = "<img src='" + Discourse.Emoji.urlFor(title) + "' class='emoji'> <span>:" + title + ":<span>";
+    const html = "<img src='" + emojiUrlFor(title) + "' class='emoji'> <span>:" + title + ":<span>";
     $('.emoji-modal .info').html(html);
   }, () => $('.emoji-modal .info').html(""));
 
@@ -136,7 +137,7 @@ function render(page, offset, options) {
       rows.push(row);
       row = [];
     }
-    row.push({src: Discourse.Emoji.urlFor(icons[i]), title: icons[i]});
+    row.push({src: emojiUrlFor(icons[i]), title: icons[i]});
   }
   rows.push(row);
 

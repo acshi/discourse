@@ -1,5 +1,3 @@
-import { whiteListTag } from 'discourse/lib/sanitizer';
-
 export function register(helper, codeName, args, emitter) {
   // Optional second param for args
   if (typeof args === "function") {
@@ -46,8 +44,9 @@ export function register(helper, codeName, args, emitter) {
   });
 };
 
-// Handles `[code] ... [/code]` blocks
 export function setup(helper) {
+
+  helper.whiteList(['span.bbcode-b', 'span.bbcode-i', 'span.bbcode-u', 'span.bbcode-s']);
 
   function replaceBBCode(tag, emitter, opts) {
     const start = `[${tag}]`;
@@ -87,8 +86,6 @@ export function setup(helper) {
     tag = tag.toUpperCase();
     helper.inlineBetween(_.merge(opts, { start: "[" + tag + "=", stop: "[/" + tag + "]" }));
   }
-
-  whiteListTag('span', 'class', /^bbcode-[bius]$/);
 
   replaceBBCode('b', contents => ['span', {'class': 'bbcode-b'}].concat(contents));
   replaceBBCode('i', contents => ['span', {'class': 'bbcode-i'}].concat(contents));

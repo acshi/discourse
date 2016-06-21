@@ -1,11 +1,4 @@
 <script>
-  window.assetPath = (function(){
-    var map = <%= deferred_scripts %>;
-    return function(asset) { return map[asset]; };
-  })();
-</script>
-
-<script>
   Ember.RSVP.configure('onerror', function(e) {
     // Ignore TransitionAborted exceptions that bubble up
     if (e && e.message === "TransitionAborted") { return; }

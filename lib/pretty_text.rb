@@ -1,5 +1,6 @@
 require 'mini_racer'
 require 'nokogiri'
+require 'erb'
 require_dependency 'url_helper'
 require_dependency 'excerpt_parser'
 require_dependency 'post'
@@ -93,62 +94,128 @@ module PrettyText
     Rails.root
   end
 
-  def self.create_new_context
-    # timeout any eval that takes longer than 15 seconds
+  def self.find_file(root, filename)
+    return filename if File.file?("#{root}#{filename}")
+
+    es6_name = "#{filename}.js.es6"
+    return es6_name if File.file?("#{root}#{es6_name}")
+
+    js_name = "#{filename}.js"
+    return js_name if File.file?("#{root}#{js_name}")
+
+    erb_name = "#{filename}.js.es6.erb"
+    return erb_name if File.file?("#{root}#{erb_name}")
+  end
+
+  def self.apply_es6_file(ctx, root_path, part_name)
+    filename = find_file(root_path, part_name)
+    if filename
+      source = File.read("#{root_path}#{filename}")
+
+      if filename =~ /\.erb$/
+        source = ERB.new(source).result(binding)
+      end
+
+      template = Tilt::ES6ModuleTranspilerTemplate.new {}
+      transpiled = template.module_transpile(source, "#{Rails.root}/app/assets/javascripts/", part_name)
+      ctx.eval(transpiled)
+    else
+      # Look for vendored stuff
+      vendor_root = "#{Rails.root}/vendor/assets/javascripts/"
+      filename = find_file(vendor_root, part_name)
+      if filename
+        ctx.eval(File.read("#{vendor_root}#{filename}"))
+      end
+    end
+  end
+
+  def self.create_es6_context
     ctx = MiniRacer::Context.new(timeout: 15000)
 
-    Helpers.instance_methods.each do |method|
-      ctx.attach("helpers.#{method}", Helpers.method(method))
-    end
+    ctx.eval("window = {};")
 
-    ctx_load(ctx,
-      "vendor/assets/javascripts/md5.js",
-      "vendor/assets/javascripts/lodash.js",
-      "vendor/assets/javascripts/Markdown.Converter.js",
-      "lib/headless-ember.js",
-      "vendor/assets/javascripts/rsvp.js",
-      Rails.configuration.ember.handlebars_location
-    )
+    # TODO: Remove
+    ctx.eval("Discourse = {};")
+    ctx.eval("Discourse.SiteSettings = {};")
+    ctx.eval("Discourse.SiteSettings.highlighted_languages = '';")
+    ctx_load(ctx, "#{Rails.root}/app/assets/javascripts/discourse/lib/utilities.js")
+    #
 
-    ctx.eval("var Discourse = {}; Discourse.SiteSettings = {};")
-    ctx.eval("var window = {}; window.devicePixelRatio = 2;") # hack to make code think stuff is retina
-    ctx.eval("var I18n = {}; I18n.t = function(a,b){ return helpers.t(a,b); }");
-
-    ctx.eval("var modules = {};")
-
-    decorate_context(ctx)
-
-    ctx_load(ctx,
-      "vendor/assets/javascripts/better_markdown.js",
-      "app/assets/javascripts/defer/html-sanitizer-bundle.js",
-      "app/assets/javascripts/discourse/lib/utilities.js",
-      "app/assets/javascripts/discourse/dialects/dialect.js",
-      "app/assets/javascripts/discourse/lib/censored-words.js",
-    )
-
-    Dir["#{app_root}/app/assets/javascripts/discourse/dialects/**.js"].sort.each do |dialect|
-      ctx.load(dialect) unless dialect =~ /\/dialect\.js$/
-    end
-
-    # emojis
-    emoji = ERB.new(File.read("#{app_root}/app/assets/javascripts/discourse/lib/emoji/emoji.js.erb"))
-    ctx.eval(emoji.result)
-
-    # Load server side javascripts
-    if DiscoursePluginRegistry.server_side_javascripts.present?
-      DiscoursePluginRegistry.server_side_javascripts.each do |ssjs|
-        if(ssjs =~ /\.erb/)
-          erb = ERB.new(File.read(ssjs))
-          erb.filename = ssjs
-          ctx.eval(erb.result)
-        else
-          ctx.load(ssjs)
+    ctx_load(ctx, "vendor/assets/javascripts/loader.js")
+    ctx_load(ctx, "vendor/assets/javascripts/lodash.js")
+    manifest = File.read("#{Rails.root}/app/assets/javascripts/pretty-text-bundle.js")
+    root_path = "#{Rails.root}/app/assets/javascripts/"
+    manifest.each_line do |l|
+      if l =~ /\/\/= require (\.\/)?(.*)$/
+        apply_es6_file(ctx, root_path, Regexp.last_match[2])
+      elsif l =~ /\/\/= require_tree (\.\/)?(.*)$/
+        path = Regexp.last_match[2]
+        Dir["#{root_path}/#{path}/**"].each do |f|
+          apply_es6_file(ctx, root_path, f.sub(root_path, '')[1..-1].sub(/\.js.es6$/, ''))
         end
       end
     end
 
+    ctx.eval("PrettyText = require('pretty-text/pretty-text').default;")
     ctx
   end
+
+  # def self.create_new_context
+  #   # timeout any eval that takes longer than 15 seconds
+  #   ctx = MiniRacer::Context.new(timeout: 15000)
+  #
+  #   Helpers.instance_methods.each do |method|
+  #     ctx.attach("helpers.#{method}", Helpers.method(method))
+  #   end
+  #
+  #   ctx_load(ctx,
+  #     "vendor/assets/javascripts/md5.js",
+  #     "vendor/assets/javascripts/lodash.js",
+  #     "vendor/assets/javascripts/Markdown.Converter.js",
+  #     "lib/headless-ember.js",
+  #     "vendor/assets/javascripts/rsvp.js",
+  #     Rails.configuration.ember.handlebars_location
+  #   )
+  #
+  #   ctx.eval("var Discourse = {}; Discourse.SiteSettings = {};")
+  #   ctx.eval("var window = {}; window.devicePixelRatio = 2;") # hack to make code think stuff is retina
+  #   ctx.eval("var I18n = {}; I18n.t = function(a,b){ return helpers.t(a,b); }");
+  #
+  #   ctx.eval("var modules = {};")
+  #
+  #   decorate_context(ctx)
+  #
+  #   ctx_load(ctx,
+  #     "vendor/assets/javascripts/better_markdown.js",
+  #     "app/assets/javascripts/defer/html-sanitizer-bundle.js",
+  #     "app/assets/javascripts/discourse/lib/utilities.js",
+  #     "app/assets/javascripts/discourse/dialects/dialect.js",
+  #     "app/assets/javascripts/discourse/lib/censored-words.js",
+  #   )
+  #
+  #   Dir["#{app_root}/app/assets/javascripts/discourse/dialects/**.js"].sort.each do |dialect|
+  #     ctx.load(dialect) unless dialect =~ /\/dialect\.js$/
+  #   end
+  #
+  #   # emojis
+  #   emoji = ERB.new(File.read("#{app_root}/app/assets/javascripts/discourse/lib/emoji/emoji.js.erb"))
+  #   ctx.eval(emoji.result)
+  #
+  #   # Load server side javascripts
+  #   if DiscoursePluginRegistry.server_side_javascripts.present?
+  #     DiscoursePluginRegistry.server_side_javascripts.each do |ssjs|
+  #       if(ssjs =~ /\.erb/)
+  #         erb = ERB.new(File.read(ssjs))
+  #         erb.filename = ssjs
+  #         ctx.eval(erb.result)
+  #       else
+  #         ctx.load(ssjs)
+  #       end
+  #     end
+  #   end
+  #
+  #   ctx
+  # end
 
   def self.v8
     return @ctx if @ctx
@@ -156,7 +223,7 @@ module PrettyText
     # ensure we only init one of these
     @ctx_init.synchronize do
       return @ctx if @ctx
-      @ctx = create_new_context
+      @ctx = create_es6_context
     end
 
     @ctx
@@ -207,42 +274,41 @@ module PrettyText
     protect do
       context = v8
       # we need to do this to work in a multi site environment, many sites, many settings
-      decorate_context(context)
 
       context_opts = opts || {}
       context_opts[:sanitize] = true unless context_opts[:sanitize] == false
 
-      context.eval("opts = #{context_opts.to_json};")
+      context.eval("pt = new PrettyText(#{context_opts.to_json});")
       context.eval("raw = #{text.inspect};")
 
-      if Post.white_listed_image_classes.present?
-        Post.white_listed_image_classes.each do |klass|
-          context.eval("Discourse.Markdown.whiteListClass('#{klass}')")
-        end
-      end
-
-      if SiteSetting.enable_emoji?
-        context.eval("Discourse.Dialect.setUnicodeReplacements(#{Emoji.unicode_replacements_json})");
-      else
-        context.eval("Discourse.Dialect.setUnicodeReplacements(null)");
-      end
-
-      # reset emojis (v8 context is shared amongst multisites)
-      context.eval("Discourse.Dialect.resetEmojis();")
-      # custom emojis
-      Emoji.custom.each do |emoji|
-        context.eval("Discourse.Dialect.registerEmoji('#{emoji.name}', '#{emoji.url}');")
-      end
-      # plugin emojis
-      context.eval("Discourse.Emoji.applyCustomEmojis();")
-
-      context.eval('opts["mentionLookup"] = function(u){return helpers.mention_lookup(u);}')
-      context.eval('opts["categoryHashtagLookup"] = function(c){return helpers.category_hashtag_lookup(c);}')
-      context.eval('opts["lookupAvatar"] = function(p){return Discourse.Utilities.avatarImg({size: "tiny", avatarTemplate: helpers.avatar_template(p)});}')
-      context.eval('opts["getTopicInfo"] = function(i){return helpers.get_topic_info(i)};')
-      context.eval('opts["categoryHashtagLookup"] = function(c){return helpers.category_tag_hashtag_lookup(c);}')
+      # if Post.white_listed_image_classes.present?
+      #   Post.white_listed_image_classes.each do |klass|
+      #     context.eval("Discourse.Markdown.whiteListClass('#{klass}')")
+      #   end
+      # end
+      #
+      # if SiteSetting.enable_emoji?
+      #   context.eval("Discourse.Dialect.setUnicodeReplacements(#{Emoji.unicode_replacements_json})");
+      # else
+      #   context.eval("Discourse.Dialect.setUnicodeReplacements(null)");
+      # end
+      #
+      # # reset emojis (v8 context is shared amongst multisites)
+      # context.eval("Discourse.Dialect.resetEmojis();")
+      # # custom emojis
+      # Emoji.custom.each do |emoji|
+      #   context.eval("Discourse.Dialect.registerEmoji('#{emoji.name}', '#{emoji.url}');")
+      # end
+      # # plugin emojis
+      # context.eval("Discourse.Emoji.applyCustomEmojis();")
+      #
+      # context.eval('opts["mentionLookup"] = function(u){return helpers.mention_lookup(u);}')
+      # context.eval('opts["categoryHashtagLookup"] = function(c){return helpers.category_hashtag_lookup(c);}')
+      # context.eval('opts["lookupAvatar"] = function(p){return Discourse.Utilities.avatarImg({size: "tiny", avatarTemplate: helpers.avatar_template(p)});}')
+      # context.eval('opts["getTopicInfo"] = function(i){return helpers.get_topic_info(i)};')
+      # context.eval('opts["categoryHashtagLookup"] = function(c){return helpers.category_tag_hashtag_lookup(c);}')
       DiscourseEvent.trigger(:markdown_context, context)
-      baked = context.eval('Discourse.Markdown.markdownConverter(opts).makeHtml(raw)')
+      baked = context.eval("pt.cook(#{text.inspect})")
     end
 
     if baked.blank? && !(opts || {})[:skip_blank_test]

@@ -5,7 +5,8 @@ import { longDate } from 'discourse/lib/formatter';
 import computed from 'ember-addons/ember-computed-decorators';
 import ActionSummary from 'discourse/models/action-summary';
 import { popupAjaxError } from 'discourse/lib/ajax-error';
-import { censor } from 'discourse/lib/censored-words';
+import { censor } from 'pretty-text/censored-words';
+import { emojiUnescape } from 'pretty-text/emoji';
 
 export function loadTopicView(topic, args) {
   const topicId = topic.get('id');
@@ -46,7 +47,7 @@ const Topic = RestModel.extend({
 
   @computed('fancy_title')
   fancyTitle(title) {
-    return censor(Discourse.Emoji.unescape(title || ""));
+    return censor(emojiUnescape(title || ""));
   },
 
   // returns createdAt if there's no bumped date

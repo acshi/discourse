@@ -1,5 +1,5 @@
-import { sanitize } from 'discourse/lib/sanitizer';
-import PrettyText from 'discourse/lib/pretty-text';
+import { sanitize } from 'pretty-text/sanitizer';
+import PrettyText from 'pretty-text/pretty-text';
 import { hashString } from 'discourse/lib/hash';
 
 // Run the MDTest spec
@@ -16,7 +16,7 @@ function normalize(str) {
 
 // We use a custom sanitizer for MD test that hoists out comments. In Discourse
 // they are stripped, but to be compliant with the spec they should not be.
-function sanitizer(result) {
+function sanitizer(result, whiteLister) {
   let hoisted;
   const m = result.match(/<!--[\s\S]*?-->/g);
   if (m && m.length) {
@@ -29,7 +29,7 @@ function sanitizer(result) {
     }
   }
 
-  result = sanitize(result);
+  result = sanitize(result, whiteLister);
   if (hoisted) {
     hoisted.forEach(tuple => result = result.replace(tuple[1], tuple[0]));
   }

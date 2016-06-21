@@ -1,4 +1,4 @@
-import guid from 'discourse/lib/guid';
+import guid from 'pretty-text/guid';
 
 /**
   markdown-js doesn't ensure that em/strong codes are present on word boundaries.

@@ -3,6 +3,7 @@ import RawHtml from 'discourse/widgets/raw-html';
 import { createWidget } from 'discourse/widgets/widget';
 import DiscourseURL from 'discourse/lib/url';
 import { h } from 'virtual-dom';
+import { emojiUnescape } from 'pretty-text/emoji';
 
 const LIKED_TYPE = 5;
 const INVITED_TYPE = 8;
@@ -90,7 +91,7 @@ createWidget('notification-item', {
     const lookup = this.site.get('notificationLookup');
     const notName = lookup[notificationType];
 
-    const contents = new RawHtml({ html: `<div>${Discourse.Emoji.unescape(this.text(notificationType, notName))}</div>` });
+    const contents = new RawHtml({ html: `<div>${emojiUnescape(this.text(notificationType, notName))}</div>` });
     const href = this.url();
     const alt = I18n.t(`notifications.alt.${notName}`);
     return href ? h('a', { attributes: { href, alt, 'data-auto-route': true } }, contents) : contents;

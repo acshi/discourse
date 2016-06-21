@@ -1,5 +1,3 @@
-import { whiteListTag } from 'discourse/lib/sanitizer';
-
 // Support for various code blocks
 const TEXT_CODE_CLASSES = ["text", "pre", "plain"];
 
@@ -15,9 +13,9 @@ function codeFlattenBlocks(blocks) {
 export function setup(helper) {
 
   const acceptableCodeClasses = Discourse.SiteSettings.highlighted_languages.split("|");
-  if (Discourse.SiteSettings.highlighted_languages.length > 0) {
-    var regexpSource = "^lang-(" + "nohighlight|auto|" + Discourse.SiteSettings.highlighted_languages + ")$";
-    whiteListTag('code', 'class', new RegExp(regexpSource, "i"));
+  if (acceptableCodeClasses.length > 0) {
+    const langs = ['nohighlight', 'auto'].concat(acceptableCodeClasses);
+    helper.whiteList(langs.map(l => `code.lang-${l}`));
   }
 
   helper.replaceBlock({

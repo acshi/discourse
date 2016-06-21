@@ -1,4 +1,4 @@
-import { register } from 'discourse/lib/discourse-markdown/bbcode';
+import { register } from 'pretty-text/engines/discourse-markdown/bbcode';
 
 export function setup(helper) {
   register(helper, 'quote', {noWrap: true, singlePara: true}, (contents, bbParams, options) => {

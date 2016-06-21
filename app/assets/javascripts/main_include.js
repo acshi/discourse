@@ -49,7 +49,6 @@
 //= require ./discourse/lib/posts-with-placeholders
 //= require ./discourse/models/post-stream
 //= require ./discourse/models/topic-details
-//= require ./discourse/lib/censored-words
 //= require ./discourse/models/topic
 //= require ./discourse/models/user-action
 //= require ./discourse/models/draft
@@ -70,9 +69,8 @@
 //= require ./discourse/lib/link-mentions
 //= require ./discourse/components/site-header
 //= require ./discourse/lib/utilities
-//= require ./discourse/lib/emoji/emoji
-//= require ./discourse/lib/emoji/emoji-groups
-//= require ./discourse/lib/emoji/emoji-toolbar
+//= require ./discourse/lib/emoji/groups
+//= require ./discourse/lib/emoji/toolbar
 //= require ./discourse/components/d-editor
 //= require ./discourse/views/composer
 //= require ./discourse/lib/show-modal

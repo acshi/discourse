@@ -1,13 +1,8 @@
-import loadScript from 'discourse/lib/load-script';
 import Quote from 'discourse/lib/quote';
 import computed from 'ember-addons/ember-computed-decorators';
 
 export default Ember.Controller.extend({
   needs: ['topic', 'composer'],
-
-  _loadSanitizer: function() {
-    loadScript('defer/html-sanitizer-bundle');
-  }.on('init'),
 
   @computed('buffer', 'postId')
   post(buffer, postId) {

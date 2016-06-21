@@ -1,4 +1,5 @@
-import guid from 'discourse/lib/guid';
+import guid from 'pretty-text/guid';
+import { default as WhiteLister, whiteListFeature } from 'pretty-text/white-lister';
 
 var parser = window.BetterMarkdown,
     MD = parser.Markdown,
@@ -39,6 +40,48 @@ class DialectHelper {
 
   addPreProcessor(preProc) {
     preProcessors.push(preProc);
+  }
+
+  /**
+    The simplest kind of replacement possible. Replace a stirng token with JsonML.
+
+    For example to replace all occurrances of :) with a smile image:
+
+    ```javascript
+      helper.inlineReplace(':)', text => ['img', {src: '/images/smile.png'}]);
+    ```
+
+    @method inlineReplace
+    @param {String} token The token we want to replace
+    @param {Function} emitter A function that emits the JsonML for the replacement.
+  **/
+  inlineReplace(token, emitter) {
+    this.registerInline(token, (text, match, prev) => {
+      return [token.length, emitter.call(this, token, match, prev)];
+    });
+  }
+
+  /**
+    After the parser has been executed, change the contents of a HTML tag.
+
+    Let's say you want to replace the contents of all code tags to prepend
+    "EVIL TROUT HACKED YOUR CODE!":
+
+    ```javascript
+      helper.postProcessTag('code', contents => `EVIL TROUT HACKED YOUR CODE!\n\n${contents}`);
+    ```
+
+    @method postProcessTag
+    @param {String} tag The HTML tag you want to match on
+    @param {Function} emitter The function to call with the text. It returns JsonML to modify the tree.
+  **/
+  postProcessTag(tag, emitter) {
+    this.onParseNode(event => {
+      const node = event.node;
+      if (node[0] === tag) {
+        node[node.length-1] = emitter(node[node.length-1]);
+      }
+    });
   }
 
   /**
@@ -162,6 +205,8 @@ class DialectHelper {
   **/
   replaceBlock(args) {
     function blockFunc(block, next) {
+      if (args.feature && !currentOpts.features[args.feature]) { return; }
+
       const linebreaks = currentOpts.traditionalMarkdownLinebreaks;
       if (linebreaks && args.skipIfTradtionalLinebreaks) { return; }
 
@@ -310,7 +355,10 @@ class DialectHelper {
       if (entry.indexOf('discourse-markdown') !== -1) {
         const module = require(entry);
         if (module && module.setup) {
+          const featureName = entry.split('/').reverse()[0];
+          helper.whiteList = info => whiteListFeature(featureName, info);
           module.setup(this);
+          helper.whiteList = undefined;
         }
       }
     });
@@ -327,10 +375,7 @@ class DialectHelper {
 
 const helper = new DialectHelper();
 
-
 export function cook(raw, opts) {
-  helper.setup();
-
   currentOpts = opts;
 
   hoisted = {};
@@ -338,8 +383,10 @@ export function cook(raw, opts) {
 
   preProcessors.forEach(p => raw = p(raw, hoister));
 
+  const whiteLister = new WhiteLister(opts.features);
+
   const tree = parser.toHTMLTree(raw, 'Discourse');
-  let result = opts.sanitizer(parser.renderJsonML(parseTree(tree, opts)));
+  let result = opts.sanitizer(parser.renderJsonML(parseTree(tree, opts)), whiteLister);
 
   // If we hoisted out anything, put it back
   const keys = Object.keys(hoisted);
@@ -360,6 +407,10 @@ export function cook(raw, opts) {
   }
 
   return result.trim();
+}
+
+export function setup() {
+  helper.setup();
 }
 
 function processTextNodes(node, event, emitter) {
@@ -534,52 +585,3 @@ function hoistCodeBlocksAndSpans(text) {
   // replace back all weird character with "\`"
   return showBackslashEscapedCharacters(text);
 }
-
-Discourse.OldDialect = {
-  /**
-    The simplest kind of replacement possible. Replace a stirng token with JsonML.
-
-    For example to replace all occurrances of :) with a smile image:
-
-    ```javascript
-      Discourse.Dialect.inlineReplace(':)', function (text) {
-        return ['img', {src: '/images/smile.png'}];
-      });
-
-    ```
-
-    @method inlineReplace
-    @param {String} token The token we want to replace
-    @param {Function} emitter A function that emits the JsonML for the replacement.
-  **/
-  inlineReplace: function(token, emitter) {
-    this.registerInline(token, function(text, match, prev) {
-      return [token.length, emitter.call(this, token, match, prev)];
-    });
-  },
-
-  /**
-    After the parser has been executed, change the contents of a HTML tag.
-
-    Let's say you want to replace the contents of all code tags to prepend
-    "EVIL TROUT HACKED YOUR CODE!":
-
-    ```javascript
-      Discourse.Dialect.postProcessTag('code', function (contents) {
-        return "EVIL TROUT HACKED YOUR CODE!\n\n" + contents;
-      });
-    ```
-
-    @method postProcessTag
-    @param {String} tag The HTML tag you want to match on
-    @param {Function} emitter The function to call with the text. It returns JsonML to modify the tree.
-  **/
-  postProcessTag: function(tag, emitter) {
-    Discourse.Dialect.on('parseNode', function (event) {
-      var node = event.node;
-      if (node[0] === tag) {
-        node[node.length-1] = emitter(node[node.length-1]);
-      }
-    });
-  }
-};

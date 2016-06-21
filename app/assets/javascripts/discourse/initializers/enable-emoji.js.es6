@@ -1,3 +1,4 @@
+import { emojiInitialize } from 'pretty-text/emoji';
 import { withPluginApi } from 'discourse/lib/plugin-api';
 
 export default {
@@ -19,8 +20,7 @@ export default {
         });
       });
 
-      // enable plugin emojis
-      Discourse.Emoji.applyCustomEmojis();
+      emojiInitialize();
     }
   }
 };

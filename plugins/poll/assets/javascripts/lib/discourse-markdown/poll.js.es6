@@ -1,4 +1,3 @@
-import { whiteListTag } from 'discourse/lib/sanitizer';
 import md5 from 'discourse/plugins/poll/lib/md5';
 
 const DATA_PREFIX = "data-poll-";
@@ -7,12 +6,18 @@ const WHITELISTED_ATTRIBUTES = ["type", "name", "min", "max", "step", "order", "
 const ATTRIBUTES_REGEX = new RegExp("(" + WHITELISTED_ATTRIBUTES.join("|") + ")=['\"]?[^\\s\\]]+['\"]?", "g");
 
 export function setup(helper) {
-  whiteListTag("div", "class", "poll");
-  whiteListTag("div", "class", /^poll-(info|container|buttons)/);
-  whiteListTag("div", "data-*");
-  whiteListTag("span", "class", /^info-(number|text)/);
-  whiteListTag("a", "class", /^button (cast-votes|toggle-results)/);
-  whiteListTag("li", "data-*");
+  helper.whiteList([
+    'div.poll',
+    'div.poll-info',
+    'div.poll-container',
+    'div.poll-buttons',
+    'div[data-*]',
+    'span.info-number',
+    'span.info-text',
+    'a.button.cast-votes',
+    'a.button.toggle-results',
+    'li[data-*'
+  ]);
 
   helper.replaceBlock({
     start: /\[poll((?:\s+\w+=[^\s\]]+)*)\]([\s\S]*)/igm,
