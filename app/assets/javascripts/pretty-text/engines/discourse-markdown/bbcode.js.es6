@@ -8,7 +8,8 @@ export function register(helper, codeName, args, emitter) {
   helper.replaceBlock({
     start: new RegExp("\\[" + codeName + "(=[^\\[\\]]+)?\\]([\\s\\S]*)", "igm"),
     stop: new RegExp("\\[\\/" + codeName + "\\]", "igm"),
-    emitter(blockContents, matches, options) {
+    emitter(blockContents, matches) {
+      const options = helper.getOptions();
       while (blockContents.length && (typeof blockContents[0] === "string" || blockContents[0] instanceof String)) {
         blockContents[0] = String(blockContents[0]).replace(/^\s+/, '');
         if (!blockContents[0].length) {
@@ -137,7 +138,8 @@ export function setup(helper) {
     stop: /\[\/code\]/igm,
     rawContents: true,
 
-    emitter(blockContents, match, options) {
+    emitter(blockContents) {
+      const options = helper.getOptions();
       const inner = blockContents.join("\n");
       const defaultCodeLang = options.defaultCodeLang;
       return ['p', ['pre', ['code', {'class': `lang-${defaultCodeLang}`}, inner]]];

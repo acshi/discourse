@@ -1,3 +1,5 @@
+import { escape } from 'pretty-text/sanitizer';
+
 // Support for various code blocks
 const TEXT_CODE_CLASSES = ["text", "pre", "plain"];
 
@@ -12,18 +14,26 @@ function codeFlattenBlocks(blocks) {
 
 export function setup(helper) {
 
-  const acceptableCodeClasses = Discourse.SiteSettings.highlighted_languages.split("|");
-  if (acceptableCodeClasses.length > 0) {
-    const langs = ['nohighlight', 'auto'].concat(acceptableCodeClasses);
-    helper.whiteList(langs.map(l => `code.lang-${l}`));
-  }
+  helper.whiteList({
+    custom(tag, name, value) {
+      if (tag === 'code' && name === 'class') {
+        const m = /^lang\-(.+)$/.exec(value);
+        if (m) {
+          return helper.getOptions().acceptableCodeClasses.indexOf(m[1]) !== -1;
+        }
+      }
+    }
+  });
 
   helper.replaceBlock({
     start: /^`{3}([^\n\[\]]+)?\n?([\s\S]*)?/gm,
     stop: /^```$/gm,
     withoutLeading: /\[quote/gm, //if leading text contains a quote this should not match
-    emitter(blockContents, matches, opts) {
+    emitter(blockContents, matches) {
+      const opts = helper.getOptions();
+
       let codeLang = opts.defaultCodeLang;
+      const acceptableCodeClasses = opts.acceptableCodeClasses;
       if (acceptableCodeClasses && matches[1] && acceptableCodeClasses.indexOf(matches[1]) !== -1) {
         codeLang = matches[1];
       }
@@ -58,7 +68,7 @@ export function setup(helper) {
                      / +$/g : /^ +| +$/g;
 
       const contents = node[node.length-1];
-      node[node.length-1] = Discourse.Utilities.escapeExpression(contents.replace(regexp,''));
+      node[node.length-1] = escape(contents.replace(regexp,''));
     }
   });
 }

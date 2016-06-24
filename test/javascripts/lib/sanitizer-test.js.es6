@@ -1,13 +1,10 @@
-import PrettyText from 'pretty-text/pretty-text';
+import { default as PrettyText, buildOptions } from 'pretty-text/pretty-text';
 import { hrefAllowed } from 'pretty-text/sanitizer';
 
 module("lib:sanitizer");
 
 test("sanitize", function() {
-  const pt = new PrettyText({
-    sanitize: true,
-    features: { bbcode: true }
-  });
+  const pt = new PrettyText(buildOptions({}));
   const cooked = (input, expected, text) => equal(pt.cook(input), expected.replace(/\/>/g, ">"), text);
 
   equal(pt.sanitize("<i class=\"fa-bug fa-spin\">bug</i>"), "<i>bug</i>");

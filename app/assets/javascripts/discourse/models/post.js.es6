@@ -4,6 +4,7 @@ import ActionSummary from 'discourse/models/action-summary';
 import { url, propertyEqual } from 'discourse/lib/computed';
 import Quote from 'discourse/lib/quote';
 import computed from 'ember-addons/ember-computed-decorators';
+import { postUrl } from 'discourse/lib/utilities';
 
 const Post = RestModel.extend({
 
@@ -48,13 +49,13 @@ const Post = RestModel.extend({
   }.property('firstPost', 'deleted_at', 'topic.deleted_at'),
 
   url: function() {
-    return Discourse.Utilities.postUrl(this.get('topic.slug') || this.get('topic_slug'), this.get('topic_id'), this.get('post_number'));
+    return postUrl(this.get('topic.slug') || this.get('topic_slug'), this.get('topic_id'), this.get('post_number'));
   }.property('post_number', 'topic_id', 'topic.slug'),
 
   // Don't drop the /1
   @computed('post_number', 'url')
-  urlWithNumber(postNumber, postUrl) {
-    return postNumber === 1 ? postUrl + "/1" : postUrl;
+  urlWithNumber(postNumber, baseUrl) {
+    return postNumber === 1 ? baseUrl + "/1" : baseUrl;
   },
 
   usernameUrl: url('username', '/users/%@'),

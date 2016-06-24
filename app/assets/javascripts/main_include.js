@@ -6,6 +6,7 @@
 //= require ./ember-addons/decorator-alias
 //= require ./ember-addons/macro-alias
 //= require ./ember-addons/ember-computed-decorators
+//= require ./discourse/lib/utilities
 //= require ./discourse/lib/hash
 //= require ./discourse/lib/load-script
 //= require ./discourse/lib/notification-levels
@@ -68,7 +69,6 @@
 //= require ./discourse/components/notifications-button
 //= require ./discourse/lib/link-mentions
 //= require ./discourse/components/site-header
-//= require ./discourse/lib/utilities
 //= require ./discourse/lib/emoji/groups
 //= require ./discourse/lib/emoji/toolbar
 //= require ./discourse/components/d-editor

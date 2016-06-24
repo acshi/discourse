@@ -30,16 +30,17 @@ export function setup(helper) {
     matcher: /^@(\w[\w.-]{0,59})\b/i,
     wordBoundary: true,
 
-    emitter(matches, opts) {
+    emitter(matches) {
       const mention = matches[0].trim();
       const name = matches[1];
+      const opts = helper.getOptions();
       const mentionLookup = opts.mentionLookup;
 
       const type = mentionLookup && mentionLookup(name);
       if (type === "user") {
-        return ['a', {'class': 'mention', href: Discourse.getURL("/users/") + name.toLowerCase()}, mention];
+        return ['a', {'class': 'mention', href: opts.getURL("/users/") + name.toLowerCase()}, mention];
       } else if (type === "group") {
-        return ['a', {'class': 'mention-group', href: Discourse.getURL("/groups/") + name}, mention];
+        return ['a', {'class': 'mention-group', href: opts.getURL("/groups/") + name}, mention];
       } else {
         return ['span', {'class': 'mention'}, mention];
       }

@@ -1,5 +1,5 @@
 import { sanitize } from 'pretty-text/sanitizer';
-import PrettyText from 'pretty-text/pretty-text';
+import { default as PrettyText, buildOptions } from 'pretty-text/pretty-text';
 import { hashString } from 'discourse/lib/hash';
 
 // Run the MDTest spec
@@ -38,7 +38,12 @@ function sanitizer(result, whiteLister) {
 }
 
 function md(input, expected, text) {
-  const cooker = new PrettyText({ traditionalMarkdownLinebreaks: true, sanitize: true, sanitizer });
+
+  const opts = buildOptions({});
+  opts.traditionalMarkdownLinebreaks = true;
+  opts.sanitizer = sanitizer;
+
+  const cooker = new PrettyText(opts);
   const result = cooker.cook(input);
   const resultNorm = normalize(result);
   const expectedNorm = normalize(expected);

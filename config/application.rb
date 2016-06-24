@@ -71,7 +71,8 @@ module Discourse
 
     config.assets.precompile += ['vendor.js', 'common.css', 'desktop.css', 'mobile.css',
                                  'admin.js', 'admin.css', 'shiny/shiny.css', 'preload_store.js',
-                                 'browser-update.js', 'embed.css', 'break_string.js', 'ember_jquery.js']
+                                 'browser-update.js', 'embed.css', 'break_string.js', 'ember_jquery.js',
+                                 'pretty-text-bundle.js']
 
     # Precompile all available locales
     Dir.glob("#{config.root}/app/assets/javascripts/locales/*.js.erb").each do |file|

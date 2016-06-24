@@ -36,9 +36,9 @@ Object.keys(aliases).forEach(name => {
   aliases[name].forEach(alias => aliasHash[alias] = name);
 });
 
-export function emojiUnescape(string) {
+export function performEmojiUnescape(string) {
   // this can be further improved by supporting matches of emoticons that don't begin with a colon
-  if (Discourse.SiteSettings.enable_emoji && string.indexOf(":") >= 0) {
+  if (string.indexOf(":") >= 0) {
     return string.replace(/\B:[^\s:]+:?\B/g, m => {
       const isEmoticon = !!translations[m];
       const emojiVal = isEmoticon ? translations[m] : m.slice(1, m.length - 1);
@@ -53,10 +53,12 @@ export function emojiUnescape(string) {
   return string;
 }
 
-export function emojiUrlFor(code) {
-  let url;
-  const set = Discourse.SiteSettings.emoji_set;
+export function emojiUnescape(string) {
+  return Discourse.SiteSettings.enable_emoji ? performEmojiUnescape(string) : string;
+}
 
+export function buildEmojiUrl(code, opts) {
+  let url;
   code = code.toLowerCase();
 
   if (extendedEmoji.hasOwnProperty(code)) {
@@ -64,11 +66,7 @@ export function emojiUrlFor(code) {
   }
 
   if (!url && emojiHash.hasOwnProperty(code)) {
-    url = Discourse.getURL('/images/emoji/' + set + '/' + code + '.png');
-  }
-
-  if (url && url[0] !== 'h' && Discourse.CDN) {
-    url = Discourse.CDN + url;
+    url = opts.getURL(`/images/emoji/${opts.emojiSet}/${code}.png`);
   }
 
   if (url) {
@@ -76,6 +74,12 @@ export function emojiUrlFor(code) {
   }
 
   return url;
+}
+
+export function emojiUrlFor(code) {
+  return buildEmojiUrl(code,
+                       { getURL: Discourse.getURL,
+                         emojiSet: Discourse.SiteSettings.emoji_set });
 };
 
 export function emojiExists(code) {

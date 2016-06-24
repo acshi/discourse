@@ -43,7 +43,7 @@ export function setup(helper) {
     const header = ['div', {'class': 'title'},
                     ['div', {'class': 'quote-controls'}],
                     avatarImg ? ['__RAW', avatarImg] : "",
-                    username ? I18n.t('user.said', {username: username}) : "" ];
+                    username ? `${username}:` : "" ];
 
     if (options.topicId && postNumber && options.getTopicInfo && topicId !== options.topicId) {
       const topicInfo = options.getTopicInfo(topicId);

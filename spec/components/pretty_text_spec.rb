@@ -360,28 +360,18 @@ HTML
     SiteSetting.s3_cdn_url = "https://awesome.cdn"
 
     # add extra img tag to ensure it does not blow up
-    raw = "<img><img src='#{Discourse.store.absolute_base_url}/original/9/9/99c9384b8b6d87f8509f8395571bc7512ca3cad1.jpg'"
+    raw = "<img><img src='#{Discourse.store.absolute_base_url}/original/9/9/99c9384b8b6d87f8509f8395571bc7512ca3cad1.jpg'>"
     cooked = "<p><img><img src='https://awesome.cdn/original/9/9/99c9384b8b6d87f8509f8395571bc7512ca3cad1.jpg'></p>"
 
     expect(PrettyText.cook(raw)).to match_html(cooked)
   end
 
   describe 'tables' do
-    before do
-      PrettyText.reset_context
-    end
-
-    after do
-      PrettyText.reset_context
-    end
-
     it 'allows table html' do
       SiteSetting.allow_html_tables = true
-      PrettyText.reset_context
       table = "<table class='fa-spin'><thead><tr>\n<th class='fa-spin'>test</th></tr></thead><tbody><tr><td>a</td></tr></tbody></table>"
       match = "<table class=\"md-table\"><thead><tr> <th>test</th> </tr></thead><tbody><tr><td>a</td></tr></tbody></table>"
       expect(PrettyText.cook(table)).to match_html(match)
-
     end
 
     it 'allows no tables when not enabled' do

@@ -1,5 +1,8 @@
 const masterList = {};
+const masterCallbacks = {};
+
 const _whiteLists = {};
+const _callbacks = {};
 
 function concatUniq(src, elems) {
   src = src || [];
@@ -16,6 +19,18 @@ export default class WhiteLister {
     this._featureKeys = Object.keys(features).filter(f => features[f]);
     this._key = this._featureKeys.join(':');
     this._features = features;
+  }
+
+  getCustom() {
+    if (!_callbacks[this._key]) {
+      const callbacks = [];
+      this._featureKeys.forEach(f => {
+        (masterCallbacks[f] || []).forEach(cb => callbacks.push(cb));
+      });
+      _callbacks[this._key] = callbacks;
+    }
+
+    return _callbacks[this._key];
   }
 
   getWhiteList() {
@@ -44,6 +59,13 @@ export default class WhiteLister {
 // Builds our object that represents whether something is sanitized for a particular feature.
 export function whiteListFeature(feature, info) {
   const featureInfo = {};
+
+  // we can supply a callback instead
+  if (info.custom) {
+    masterCallbacks[feature] = masterCallbacks[feature] || [];
+    masterCallbacks[feature].push(info.custom);
+    return;
+  }
 
   if (typeof info === "string") { info = [info]; }
 
@@ -108,8 +130,11 @@ whiteListFeature('default', [
   'a[name]',
   'a[data-bbcode]',
   'a[title]',
+  'img[class]',
   'img[alt]',
   'img[title]',
+  'img[width]',
+  'img[height]',
   'pre',
   'hr',
   'h1',

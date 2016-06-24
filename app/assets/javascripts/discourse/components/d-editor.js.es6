@@ -539,7 +539,6 @@ export default Ember.Component.extend({
       const linkUrl = (origLink.indexOf('://') === -1) ? `http://${origLink}` : origLink;
       const sel = this._lastSel;
 
-
       if (Ember.isEmpty(linkUrl)) { return; }
 
       const linkText = this.get('linkText') || '';

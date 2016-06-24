@@ -1,5 +1,6 @@
 import Quote from 'discourse/lib/quote';
 import computed from 'ember-addons/ember-computed-decorators';
+import { selectedText } from 'discourse/lib/utilities';
 
 export default Ember.Controller.extend({
   needs: ['topic', 'composer'],
@@ -44,12 +45,12 @@ export default Ember.Controller.extend({
       return;
     }
 
-    const selectedText = Discourse.Utilities.selectedText();
-    if (this.get('buffer') === selectedText) return;
+    const selVal = selectedText();
+    if (this.get('buffer') === selVal) return;
 
     // we need to retrieve the post data from the posts collection in the topic controller
     this.set('postId', postId);
-    this.set('buffer', selectedText);
+    this.set('buffer', selVal);
 
     // create a marker element
     const markerElement = document.createElement("span");

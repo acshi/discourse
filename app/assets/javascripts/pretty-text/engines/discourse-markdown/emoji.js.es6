@@ -1,4 +1,4 @@
-import { emojiUrlFor } from 'pretty-text/emoji';
+import { buildEmojiUrl } from 'pretty-text/emoji';
 import { translations } from 'pretty-text/emoji/data';
 
 let _unicodeReplacements;
@@ -12,15 +12,6 @@ export function setUnicodeReplacements(replacements) {
 
 function escapeRegExp(s) {
   return s.replace(/[-/\\^$*+?.()|[\]{}]/gi, '\\$&');
-}
-
-function imageFor(code) {
-  code = code.toLowerCase();
-  const url = emojiUrlFor(code);
-  if (url) {
-    const title = `:${code}:`;
-    return ['img', { href: url, title, 'class': 'emoji', alt: title }];
-  }
 }
 
 function checkPrev(prev) {
@@ -37,6 +28,15 @@ function checkPrev(prev) {
 export function setup(helper) {
 
   helper.whiteList('img.emoji');
+
+  function imageFor(code) {
+    code = code.toLowerCase();
+    const url = buildEmojiUrl(code, helper.getOptions());
+    if (url) {
+      const title = `:${code}:`;
+      return ['img', { href: url, title, 'class': 'emoji', alt: title }];
+    }
+  }
 
   const translationsWithColon = {};
   Object.keys(translations).forEach(t => {

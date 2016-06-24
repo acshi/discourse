@@ -1,28 +1,39 @@
 import Quote from 'discourse/lib/quote';
 import Post from 'discourse/models/post';
-import PrettyText from 'pretty-text/pretty-text';
+import { default as PrettyText, buildOptions } from 'pretty-text/pretty-text';
 import { IMAGE_VERSION as v} from 'pretty-text/emoji';
 
 module("lib:pretty-text");
 
-const defaultOpts = {
-  traditionalMarkdownLinebreaks: false,
-  defaultCodeLang: 'auto',
-  sanitize: true,
-  features: { code: true, bbcode: true, emoji: true, details: true }
-};
+const defaultOpts = buildOptions({
+  siteSettings: {
+    enable_emoji: true,
+    emoji_set: 'emoji_one',
+    highlighted_languages: 'json|ruby|javascript',
+    default_code_lang: 'auto'
+  },
+  getURL: url => url
+});
 
 function cooked(input, expected, text) {
   equal(new PrettyText(defaultOpts).cook(input), expected.replace(/\/>/g, ">"), text);
 };
 
 function cookedOptions(input, opts, expected, text) {
-  equal(new PrettyText(opts).cook(input), expected, text);
+  equal(new PrettyText(_.merge({}, defaultOpts, opts)).cook(input), expected, text);
 };
 
 function cookedPara(input, expected, text) {
   cooked(input, `<p>${expected}</p>`, text);
 };
+
+test("buildOptions", () => {
+  ok(buildOptions({ siteSettings: { allow_html_tables: true } }).features.table, 'tables enabled');
+  ok(!buildOptions({ siteSettings: { allow_html_tables: false } }).features.table, 'tables disabled');
+
+  ok(buildOptions({ siteSettings: { enable_emoji: true } }).features.emoji, 'emoji enabled');
+  ok(!buildOptions({ siteSettings: { enable_emoji: false } }).features.emoji, 'emoji disabled');
+});
 
 test("basic cooking", function() {
   cooked("hello", "<p>hello</p>", "surrounds text with paragraphs");
@@ -73,7 +84,6 @@ test("Paragraphs for HTML", function() {
   cooked("<p>hello world</p>", "<p>hello world</p>", "it doesn't surround <p> with paragraphs");
   cooked("<i>hello world</i>", "<p><i>hello world</i></p>", "it surrounds inline <i> html tags with paragraphs");
   cooked("<b>hello world</b>", "<p><b>hello world</b></p>", "it surrounds inline <b> html tags with paragraphs");
-
 });
 
 test("Links", function() {
@@ -362,7 +372,7 @@ test("New Lines", function() {
 test("Oneboxing", function() {
 
   function matches(input, regexp) {
-    return new PrettyText().cook(input).match(regexp);
+    return new PrettyText(defaultOpts).cook(input).match(regexp);
   };
 
   ok(!matches("- http://www.textfiles.com/bbs/MINDVOX/FORUMS/ethics\n\n- http://drupal.org", /onebox/),
@@ -656,7 +666,7 @@ test("quote formatting", function() {
 });
 
 test("quotes with trailing formatting", function() {
-  const result = new PrettyText({ lookupAvatar: false }).cook("[quote=\"EvilTrout, post:123, topic:456, full:true\"]\nhello\n[/quote]\n*Test*");
+  const result = new PrettyText(defaultOpts).cook("[quote=\"EvilTrout, post:123, topic:456, full:true\"]\nhello\n[/quote]\n*Test*");
   equal(result,
         "<aside class=\"quote\" data-post=\"123\" data-topic=\"456\" data-full=\"true\"><div class=\"title\">" +
         "<div class=\"quote-controls\"></div>EvilTrout:</div><blockquote><p>hello</p></blockquote></aside>\n\n<p><em>Test</em></p>",
@@ -669,7 +679,7 @@ test("enable/disable features", () => {
   equal(hasTable, `<table class="md-table"><tr><th>hello</th></tr><tr><td>world</td></tr></table>`);
 
   const noTable = new PrettyText({ features: { table: false }, sanitize: true}).cook(table);
-  equal(noTable, ``, 'tables are stripped when disabled');
+  equal(noTable, `<p></p>`, 'tables are stripped when disabled');
 });
 
 test("emoji", () => {
@@ -678,3 +688,8 @@ test("emoji", () => {
   cooked("8-)", `<p><img src="/images/emoji/emoji_one/sunglasses.png?v=${v}" title=":sunglasses:" class="emoji" alt=":sunglasses:"></p>`);
 });
 
+test("emoji - emojiSet", () => {
+  cookedOptions(":smile:",
+                { emojiSet: 'twitter' },
+                `<p><img src="/images/emoji/twitter/smile.png?v=${v}" title=":smile:" class="emoji" alt=":smile:"></p>`);
+});

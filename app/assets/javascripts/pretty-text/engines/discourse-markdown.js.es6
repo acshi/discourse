@@ -1,11 +1,11 @@
 import guid from 'pretty-text/guid';
 import { default as WhiteLister, whiteListFeature } from 'pretty-text/white-lister';
+import { escape } from 'pretty-text/sanitizer';
 
 var parser = window.BetterMarkdown,
     MD = parser.Markdown,
     DialectHelpers = parser.DialectHelpers,
-    hoisted,
-    escape = Discourse.Utilities.escapeExpression;
+    hoisted;
 
 let currentOpts;
 
@@ -34,12 +34,22 @@ class DialectHelper {
     return escape(str);
   }
 
-  registerInline(start, fn) {
-    this._dialect.inline[start] = fn;
+  getOptions() {
+    return currentOpts;
   }
 
-  addPreProcessor(preProc) {
-    preProcessors.push(preProc);
+  registerInlineFeature(featureName, start, fn) {
+    this._dialect.inline[start] = function() {
+      if (!currentOpts.features[featureName]) { return; }
+      return fn.apply(this, arguments);
+    };
+  }
+
+  addPreProcessorFeature(featureName, fn) {
+    preProcessors.push(raw => {
+      if (!currentOpts.features[featureName]) { return raw; }
+      return fn(raw, hoister);
+    });
   }
 
   /**
@@ -50,13 +60,10 @@ class DialectHelper {
     ```javascript
       helper.inlineReplace(':)', text => ['img', {src: '/images/smile.png'}]);
     ```
-
-    @method inlineReplace
-    @param {String} token The token we want to replace
-    @param {Function} emitter A function that emits the JsonML for the replacement.
   **/
-  inlineReplace(token, emitter) {
+  inlineReplaceFeature(featureName, token, emitter) {
     this.registerInline(token, (text, match, prev) => {
+      if (!currentOpts.features[featureName]) { return; }
       return [token.length, emitter.call(this, token, match, prev)];
     });
   }
@@ -70,13 +77,10 @@ class DialectHelper {
     ```javascript
       helper.postProcessTag('code', contents => `EVIL TROUT HACKED YOUR CODE!\n\n${contents}`);
     ```
-
-    @method postProcessTag
-    @param {String} tag The HTML tag you want to match on
-    @param {Function} emitter The function to call with the text. It returns JsonML to modify the tree.
   **/
-  postProcessTag(tag, emitter) {
+  postProcessTagFeature(featureName, tag, emitter) {
     this.onParseNode(event => {
+      if (!currentOpts.features[featureName]) { return; }
       const node = event.node;
       if (node[0] === tag) {
         node[node.length-1] = emitter(node[node.length-1]);
@@ -102,23 +106,16 @@ class DialectHelper {
         }
       });
     ```
-
-    @method inlineRegexp
-    @param {Object} args Our replacement options
-      @param {Function} [opts.emitter] The function that will be called with the contents and regular expresison match and returns JsonML.
-      @param {String} [opts.start] The starting token we want to find
-      @param {String} [opts.matcher] The regular expression to match
-      @param {Boolean} [opts.wordBoundary] If true, the match must be on a word boundary
-      @param {Boolean} [opts.spaceBoundary] If true, the match must be on a space boundary
   **/
-  inlineRegexp(args) {
+  inlineRegexpFeature(featureName, args) {
     this.registerInline(args.start, function(text, match, prev) {
+      if (!currentOpts.features[featureName]) { return; }
       if (invalidBoundary(args, prev)) { return; }
 
       args.matcher.lastIndex = 0;
       const m = args.matcher.exec(text);
       if (m) {
-        const result = args.emitter.call(this, m, currentOpts);
+        const result = args.emitter.call(this, m);
         if (result) {
           return [m[0].length, result];
         }
@@ -142,23 +139,14 @@ class DialectHelper {
         }
       });
     ```
-
-    @method inlineBetween
-    @param {Object} args Our replacement options
-      @param {Function} [opts.emitter] The function that will be called with the contents and returns JsonML.
-      @param {String} [opts.start] The starting token we want to find
-      @param {String} [opts.stop] The ending token we want to find
-      @param {String} [opts.between] A shortcut for when the `start` and `stop` are the same.
-      @param {Boolean} [opts.rawContents] If true, the contents between the tokens will not be parsed.
-      @param {Boolean} [opts.wordBoundary] If true, the match must be on a word boundary
-      @param {Boolean} [opts.spaceBoundary] If true, the match must be on a space boundary
   **/
-  inlineBetween(args) {
+  inlineBetweenFeature(featureName, args) {
     const start = args.start || args.between;
     const stop = args.stop || args.between;
     const startLength = start.length;
 
     this.registerInline(start, function(text, match, prev) {
+      if (!currentOpts.features[featureName]) { return; }
       if (invalidBoundary(args, prev)) { return; }
 
       const endPos = findEndPos(text, start, stop, args, startLength);
@@ -195,17 +183,10 @@ class DialectHelper {
         }
       });
     ```
-
-    @method replaceBlock
-    @param {Object} args Our replacement options
-      @param {RegExp} [args.start] The starting regexp we want to find
-      @param {String} [args.stop] The ending token we want to find
-      @param {Boolean} [args.rawContents] True to skip recursive processing
-      @param {Function} [args.emitter] The emitting function to transform the contents of the block into jsonML
   **/
-  replaceBlock(args) {
+  replaceBlockFeature(featureName, args) {
     function blockFunc(block, next) {
-      if (args.feature && !currentOpts.features[args.feature]) { return; }
+      if (!currentOpts.features[featureName]) { return; }
 
       const linebreaks = currentOpts.traditionalMarkdownLinebreaks;
       if (linebreaks && args.skipIfTradtionalLinebreaks) { return; }
@@ -303,7 +284,7 @@ class DialectHelper {
       if (before.length > 0) contentBlocks.push(MD.mk_block(before, "", currentBlock.lineNumber));
       if (after.length > 0) next.unshift(MD.mk_block(after, currentBlock.trailing, currentBlock.lineNumber + countLines(before)));
 
-      const emitterResult = args.emitter.call(this, contentBlocks, match, currentOpts);
+      const emitterResult = args.emitter.call(this, contentBlocks, match);
       if (emitterResult) { result.push(emitterResult); }
       return result;
     };
@@ -331,20 +312,44 @@ class DialectHelper {
         return text.toUpperCase();
       });
     ```
-
-    @method postProcessText
-    @param {Function} emitter The function to call with the text. It returns JsonML to modify the tree.
   **/
-  postProcessText(fn) {
-    emitters.push(fn);
+  postProcessTextFeature(featureName, fn) {
+    emitters.push(function () {
+      if (!currentOpts.features[featureName]) { return; }
+      return fn.apply(this, arguments);
+    });
   }
 
-  onParseNode(fn) {
-    parseNodes.push(fn);
+  onParseNodeFeature(featureName, fn) {
+    parseNodes.push(function () {
+      if (!currentOpts.features[featureName]) { return; }
+      return fn.apply(this, arguments);
+    });
   }
 
-  registerBlock(name, fn) {
-    this._dialect.block[name] = fn;
+  registerBlockFeature(featureName, name, fn) {
+    const blockFunc = function() {
+      if (!currentOpts.features[featureName]) { return; }
+      return fn.apply(this, arguments);
+    };
+
+    blockFunc.priority = fn.priority;
+    this._dialect.block[name] = blockFunc;
+  }
+
+  applyFeature(featureName, module) {
+    helper.registerInline = (code, fn) => helper.registerInlineFeature(featureName, code, fn);
+    helper.replaceBlock = args => helper.replaceBlockFeature(featureName, args);
+    helper.addPreProcessor = fn => helper.addPreProcessorFeature(featureName, fn);
+    helper.inlineReplace = (token, emitter) => helper.inlineReplaceFeature(featureName, token, emitter);
+    helper.postProcessTag = (token, emitter) => helper.postProcessTagFeature(featureName, token, emitter);
+    helper.inlineRegexp = args => helper.inlineRegexpFeature(featureName, args);
+    helper.inlineBetween = args => helper.inlineBetweenFeature(featureName, args);
+    helper.postProcessText = fn => helper.postProcessTextFeature(featureName, fn);
+    helper.onParseNode = fn => helper.onParseNodeFeature(featureName, fn);
+    helper.registerBlock = (name, fn) => helper.registerBlockFeature(featureName, name, fn);
+
+    module.setup(this);
   }
 
   setup() {
@@ -357,7 +362,8 @@ class DialectHelper {
         if (module && module.setup) {
           const featureName = entry.split('/').reverse()[0];
           helper.whiteList = info => whiteListFeature(featureName, info);
-          module.setup(this);
+
+          this.applyFeature(featureName, module);
           helper.whiteList = undefined;
         }
       }
@@ -381,7 +387,7 @@ export function cook(raw, opts) {
   hoisted = {};
   raw = hoistCodeBlocksAndSpans(raw);
 
-  preProcessors.forEach(p => raw = p(raw, hoister));
+  preProcessors.forEach(p => raw = p(raw));
 
   const whiteLister = new WhiteLister(opts.features);
 
@@ -485,14 +491,7 @@ function parseTree(tree, options, path, insideCounts) {
   return tree;
 }
 
-/**
-  Returns true if there's an invalid word boundary for a match.
-
-  @method invalidBoundary
-  @param {Object} args our arguments, including whether we care about boundaries
-  @param {Array} prev the previous content, if exists
-  @returns {Boolean} whether there is an invalid word boundary
-**/
+// Returns true if there's an invalid word boundary for a match.
 function invalidBoundary(args, prev) {
   if (!(args.wordBoundary || args.spaceBoundary || args.spaceOrTagBoundary)) { return false; }
 

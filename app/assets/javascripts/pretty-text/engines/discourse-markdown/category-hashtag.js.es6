@@ -4,7 +4,8 @@ export function setup(helper) {
     matcher: /^#([\w-:]{1,101})/i,
     spaceOrTagBoundary: true,
 
-    emitter(matches, options) {
+    emitter(matches) {
+      const options = helper.getOptions();
       const [hashtag, slug] = matches;
       const categoryHashtagLookup = options.categoryHashtagLookup;
       const result = categoryHashtagLookup && categoryHashtagLookup(slug);

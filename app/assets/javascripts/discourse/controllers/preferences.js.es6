@@ -2,6 +2,7 @@ import { setting } from 'discourse/lib/computed';
 import CanCheckEmails from 'discourse/mixins/can-check-emails';
 import { popupAjaxError } from 'discourse/lib/ajax-error';
 import computed from "ember-addons/ember-computed-decorators";
+import PrettyText from 'pretty-text/pretty-text';
 
 export default Ember.Controller.extend(CanCheckEmails, {
 
@@ -152,7 +153,7 @@ export default Ember.Controller.extend(CanCheckEmails, {
         if (Discourse.User.currentProp('id') === model.get('id')) {
           Discourse.User.currentProp('name', model.get('name'));
         }
-        model.set('bio_cooked', Discourse.Markdown.cook(Discourse.Markdown.sanitize(model.get('bio_raw'))));
+        model.set('bio_cooked', new PrettyText({ sanitize: true }).cook(model.get('bio_raw')));
         this.set('saved', true);
       }).catch(popupAjaxError);
     },

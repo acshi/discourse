@@ -4,6 +4,7 @@
   @module $.fn.autocomplete
 **/
 export var CANCELLED_STATUS = "__CANCELLED";
+import { setCaretPosition } from 'discourse/lib/utilities';
 
 const allowedLettersRegex = /[\s\t\[\{\(\/]/;
 
@@ -145,7 +146,7 @@ export default function(options) {
           var text = me.val();
           text = text.substring(0, completeStart) + (options.key || "") + term + ' ' + text.substring(completeEnd + 1, text.length);
           me.val(text);
-          Discourse.Utilities.setCaretPosition(me[0], completeStart + 1 + term.length);
+          setCaretPosition(me[0], completeStart + 1 + term.length);
 
           if (options && options.afterComplete) {
             options.afterComplete(text);
@@ -325,7 +326,7 @@ export default function(options) {
   $(this).on('keyup.autocomplete', function(e) {
     if ([keys.esc, keys.enter].indexOf(e.which) !== -1) return true;
 
-    var caretPosition = Discourse.Utilities.caretPosition(me[0]);
+    var caretPosition = caretPosition(me[0]);
 
     if (options.key && completeStart === null && caretPosition > 0) {
       var key = me[0].value[caretPosition-1];
@@ -374,7 +375,7 @@ export default function(options) {
     }
     if (e.which === keys.shift) return;
     if ((completeStart === null) && e.which === keys.backSpace && options.key) {
-      c = Discourse.Utilities.caretPosition(me[0]);
+      c = caretPosition(me[0]);
       c -= 1;
       initial = c;
       prevIsGood = true;
@@ -406,7 +407,7 @@ export default function(options) {
     }
 
     if (completeStart !== null) {
-      caretPosition = Discourse.Utilities.caretPosition(me[0]);
+      caretPosition = caretPosition(me[0]);
 
       // allow people to right arrow out of completion
       if (e.which === keys.rightArrow && me[0].value[caretPosition] === ' ') {

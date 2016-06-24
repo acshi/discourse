@@ -19,11 +19,9 @@ export function setup(helper) {
     stop: /<\/table>/igm,
     rawContents: true,
     priority: 1,
-    feature: 'table',
 
     emitter(contents) {
       return ['table', {"class": "md-table"}, tableFlattenBlocks.apply(this, [contents])];
     }
   });
 }
-  // if (Discourse.SiteSettings.allow_html_tables) {
