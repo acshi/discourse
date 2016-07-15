@@ -397,6 +397,7 @@ GEM
       kgio (~> 2.6)
       raindrops (~> 0.7)
     uniform_notifier (1.9.0)
+    yajl-ruby (1.2.1)
 
 PLATFORMS
   ruby
@@ -501,6 +502,7 @@ DEPENDENCIES
   uglifier
   unf
   unicorn
+  yajl-ruby
 
 BUNDLED WITH
    1.12.5
