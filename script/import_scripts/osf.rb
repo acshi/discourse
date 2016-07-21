@@ -1,6 +1,6 @@
-if ARGV.length != 1 || !File.exists?(ARGV[0])
-    STDERR.puts 'Usage of OSF importer:', 'bundle exec ruby osf.rb <path to osf export file>'
-    STDERR.puts 'Make sure the export file exists' if ARGV.length == 1 && !File.exists?(ARGV[0])
+if ARGV.length != 2 || !File.exists?(ARGV[0])
+    STDERR.puts 'Usage of OSF importer:', 'bundle exec ruby osf.rb <path to file to import from osf> <path to file to export to osf>'
+    STDERR.puts 'Make sure the import file exists' if ARGV.length >= 1 && !File.exists?(ARGV[0])
     exit 1
 end
 
@@ -17,33 +17,45 @@ class ImportScripts::Osf < ImportScripts::Base
         super
     end
 
-    def import_objects(objects, object_type)
+    def import_objects(objects, object_type, total_count, offset, file_out)
         if object_type == 'user'
-            import_users(objects)
+            import_users(objects, total_count, offset, file_out)
         elsif object_type == 'project'
-            import_groups(objects)
+            import_groups(objects, total_count, offset, file_out)
         elsif object_type == 'post'
-            import_posts(objects)
+            import_posts(objects, total_count, offset, file_out)
         end
     end
 
     def execute
+        puts "Removing SSO Records because they might conflict with added users."
+        SingleSignOnRecord.delete_all()
+
         import_categories
 
         objects = []
         object_type = nil
+        object_total_count = 0
+        offset = 0
 
-        pipe_file = File.new(ARGV[0], 'r')
-        Yajl::Parser.parse(pipe_file) do |obj|
-            if object_type && (object_type != obj['object_type'] || objects.length > BATCH_SIZE)
-                import_objects(objects, object_type)
+        file_in = File.new(ARGV[0], 'r')
+        file_out = File.new(ARGV[1], 'w')
+        Yajl::Parser.parse(file_in) do |obj|
+            if object_type && (obj['type'] == 'count' || objects.length >= BATCH_SIZE)
+                import_objects(objects, object_type, object_total_count, offset, file_out)
+                offset += objects.length
                 objects = []
             end
-            object_type = obj['object_type']
-            objects << obj
+            if obj['type'] == 'count'
+                object_type = obj['object_type']
+                object_total_count = obj['count']
+                offset = 0
+            else
+                objects << obj
+            end
         end
 
-        import_objects(objects, object_type) if objects.length > 0
+        import_objects(objects, object_type, object_total_count, offset, file_out) if objects.length > 0
     end
 
     def import_categories
@@ -51,95 +63,163 @@ class ImportScripts::Osf < ImportScripts::Base
         create_categories([0, 1, 2]) do |i|
             {
                 id: ["files", "wiki", "node"][i],
-                name: ["File", "Wiki", "Project"][i],
+                name: ["Files", "Wikis", "Projects"][i],
                 color: CATEGORY_COLORS[i]
             }
         end
     end
 
-    def import_users(users)
+    def import_users(users, total_count, offset, file_out)
         puts '', "creating users"
-        create_users(users) do |user|
+        create_users(users, total: total_count, offset: offset) do |user|
+            # Avoid the expensive check if the user has already been imported
+            next if find_user_by_import_id(user['username'].to_i(36))
+            # We need to check if the user with the same email already exists before asking for a new one to be created.
+            # If we don't we will run into problems later down the line.
+            user_old = User.find_by_email(user['email'])
+            if user_old
+                user_old.custom_fields['import_id'] = user['username'].to_i(36)
+                user_old.custom_fields['is_disabled'] = user['is_disabled']
+                user_old.save
+                puts "Skipped creating user w/ email #{user['email']}, they already exist. Merging with imported user."
+                next
+            end
             {
-                id: user['id'],
+                id: user['username'].to_i(36),
                 email: user['email'],
                 username: user['username'],
                 name: user['name'],
                 avatar_url: user['avatar_url'],
+                custom_fields: {
+                    is_disabled: user['is_disabled'],
+                },
             }
+        end
+        users.each do |user_info|
+            user = find_user_by_import_id(user_info['username'].to_i(36))
+            if user == nil
+                raise "It seems that the database has more than one user with email #{user_info['email']}. Please correct this before continuing."
+            end
+            raise "is_disabled failed to import, is: #{user.custom_fields['is_disabled']}" unless (user.custom_fields['is_disabled'] == 't') == user_info['is_disabled']
+
+            Yajl::Encoder.encode({
+                type: 'user',
+                guid: user_info['username'],
+                user_id: user.id,
+            }, file_out)
+            file_out.write("\n")
         end
     end
 
-    def import_groups(projects)
+    def import_groups(projects, total_count, offset, file_out)
         puts '', "creating groups"
-        create_groups(projects) do |project|
+        create_groups(projects, total: total_count, offset: offset) do |project|
             {
-                id: project['id'],
+                id: project['guid'].to_i(36),
                 name: project['guid'],
                 visible: project['is_public'],
+                custom_fields: {
+                    is_deleted: project['is_deleted'],
+                },
             }
         end
         projects.each do |project|
-            group = find_group_by_import_id(project['id'])
-            group.bulk_add(project['contributors'].map { |u| user_id_from_imported_user_id(u) } )
+            group = find_group_by_import_id(project['guid'].to_i(36))
+            group.bulk_add(project['contributors'].map { |u| user_id_from_imported_user_id(u.to_i(36)) } )
+            group.save
             raise "Visibility failed to import to group: " unless group.visible == project['is_public']
+            raise "is_deleted failed to import, is: #{group.custom_fields['is_deleted']}" unless (group.custom_fields['is_deleted'] == 't') == project['is_deleted']
+
+            Yajl::Encoder.encode({
+                type: 'project',
+                guid: project['guid'],
+                group_id: group.id,
+                group_public: project['is_public'],
+                group_users: project['contributors'],
+            }, file_out)
+            file_out.write("\n")
         end
     end
 
-    def import_posts(posts)
+    def import_posts(posts, total_count, offset, file_out)
         puts "", "creating topics and posts"
+        @posts_hash ||= Hash.new
+        @posts_hash.merge! posts.map {|p| [p['topic_guid'] || p['comment_guid'], p]}.to_h
 
-        create_posts(posts) do |post|
+        post_results = create_posts(posts, total: total_count, offset: offset) do |post|
+            parent_post = post
+            while parent_post['post_type'] == 'comment'
+                parent_guid = parent_post['reply_to']
+                parent_post = @posts_hash[parent_guid]
+                if parent_post == nil
+                    puts "Comment #{post['comment_guid']} skipped because parent #{parent_guid} does not exist."
+                    break
+                end
+            end
+            next if parent_post == nil
+
+            project_guid = parent_post['parent_guids'][0]
+            project_group = find_group_by_import_id(project_guid.to_i(36))
+            project_deleted = 't' == project_group.custom_fields['is_deleted']
+
             if post['post_type'] == 'topic'
                 {
-                    id: post['id'],
+                    id: post['topic_guid'].to_i(36),
                     title: post['title'],
                     raw: post['content'],
                     user_id: -1, #system
                     created_at: Time.parse(post['date_created']),
                     category: category_id_from_imported_category_id(post['type']),
-                    #custom_fields: {
-                    #    topic_guid: post['topic_guid'],
-                    #    parent_guids: post['parent_guids'],
-                    #}
+                    custom_fields: {
+                        is_deleted: post['is_deleted'],
+                    },
+                    deleted_at: post['is_deleted'] || project_deleted ? Time.new : nil,
                 }
             else
-                parent = topic_lookup_from_imported_post_id(post['reply_to'])
+                parent = topic_lookup_from_imported_post_id(post['reply_to'].to_i(36))
                 {
-                    id: post['id'],
+                    id: post['comment_guid'].to_i(36),
                     raw: post['content'],
-                    user_id: user_id_from_imported_user_id(post['user']),
+                    user_id: user_id_from_imported_user_id(post['user'].to_i(36)),
                     topic_id: parent[:topic_id],
                     reply_to_post_number: parent[:post_number],
                     created_at: Time.parse(post['date_created']),
+                    custom_fields: {
+                        is_deleted: post['is_deleted'],
+                    },
+                    deleted_at: post['is_deleted'] || project_deleted ? Time.new : nil,
                 }
             end
         end
+        puts "Created #{post_results[0]} posts and skipped #{post_results[1]} already created posts"
 
         posts.each do |post_data|
             next unless post_data['post_type'] == 'topic'
-            topic_data = topic_lookup_from_imported_post_id(post_data['id'])
-            #post_id = post_id_from_imported_post_id(post_data['id'])
-
-            #topic = Topic.where()
-            #post = Post.find(post_id)
-            #post.custom_fields['parent_guids'] = post_data['parent_guids']
-            #post.custom_fields['topic_guid'] = post_data['topic_guid']
-            #post.save
+            topic_data = topic_lookup_from_imported_post_id(post_data['topic_guid'].to_i(36))
 
             topic = Topic.find(topic_data[:topic_id])
-            # parent_guids array gets reversed on insertion to DB during save.
-            topic.custom_fields['parent_guids'] = post_data['parent_guids'].reverse
+            topic.custom_fields['parent_guids'] = "-#{post_data['parent_guids'].join('-')}-"
             topic.custom_fields['project_guid'] = post_data['parent_guids'][0]
             topic.custom_fields['topic_guid'] = post_data['topic_guid']
             topic.save
 
-            parent_guids = topic.custom_fields['parent_guids']#PostCustomField.where(post_id: post_id, name: 'parent_guids').pluck(:value).first
+            parent_guids = topic.custom_fields['parent_guids'].split('-').delete_if { |e| e.length == 0 }
             project_guid = topic.custom_fields['project_guid']
-            topic_guid = topic.custom_fields['topic_guid']#PostCustomField.where(post_id: post_id, name: 'topic_guid').pluck(:value).first
-            raise "Parent guids did not persist, #{parent_guids} != #{post_data['parent_guids']}" unless [parent_guids].flatten == post_data['parent_guids']
+            topic_guid = topic.custom_fields['topic_guid']
+            raise "Parent guids did not persist, #{parent_guids} != #{post_data['parent_guids']}" unless parent_guids == post_data['parent_guids']
             raise "Project guid did not persist" unless project_guid == post_data['parent_guids'][0]
             raise "Topic guid did not persist" unless topic_guid == post_data['topic_guid']
+
+            Yajl::Encoder.encode({
+                type: 'topic',
+                guid: topic_guid,
+                topic_id: topic.id,
+                topic_title: topic.title,
+                topic_parent_guids: parent_guids,
+                topic_deleted: topic.deleted_at != nil,
+                post_id: post_id_from_imported_post_id(post_data['topic_guid'].to_i(36)),
+            }, file_out)
+            file_out.write("\n")
         end
 
     end
