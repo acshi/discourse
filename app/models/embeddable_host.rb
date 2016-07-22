@@ -24,6 +24,7 @@ class EmbeddableHost < ActiveRecord::Base
   private
 
     def host_must_be_valid
+      return if host =~ /localhost$/i
       if host !~ /\A[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,7}(:[0-9]{1,5})?(\/.*)?\Z/i &&
          host !~ /\A(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\Z/ &&
          host !~ /\A([a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.)?localhost(\:[0-9]{1,5})?(\/.*)?\Z/i

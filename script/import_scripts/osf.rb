@@ -102,6 +102,10 @@ class ImportScripts::Osf < ImportScripts::Base
             end
             raise "is_disabled failed to import, is: #{user.custom_fields['is_disabled']}" unless (user.custom_fields['is_disabled'] == 't') == user_info['is_disabled']
 
+            # Upload the avatar
+            UserAvatar.import_url_for_user(user.custom_fields['import_avatar_url'], user)
+            user.save
+
             Yajl::Encoder.encode({
                 type: 'user',
                 guid: user_info['username'],
