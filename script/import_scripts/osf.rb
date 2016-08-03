@@ -62,7 +62,7 @@ class ImportScripts::Osf < ImportScripts::Base
         puts "", "importing categories..."
         create_categories([0, 1, 2]) do |i|
             {
-                id: ["files", "wiki", "node"][i],
+                id: ["files", "wiki", "nodes"][i], # These need to match the .target_type field on the OSF objects
                 name: ["Files", "Wikis", "Projects"][i],
                 color: CATEGORY_COLORS[i]
             }
@@ -145,6 +145,10 @@ class ImportScripts::Osf < ImportScripts::Base
         end
     end
 
+    def convertMentions(postContent)
+        postContent.gsub(/\[[@|\+].*?(?<!\\)\]\(https?:\/\/[a-z\d:.]+?\/([a-z\d]{5})\/\)/, '@\1')
+    end
+
     def import_posts(posts, total_count, offset, file_out)
         puts "", "creating topics and posts"
         @posts_hash ||= Hash.new
@@ -166,11 +170,13 @@ class ImportScripts::Osf < ImportScripts::Base
             project_group = find_group_by_import_id(project_guid.to_i(36))
             project_deleted = 't' == project_group.custom_fields['is_deleted']
 
+            converted_content = convertMentions(post['content'])
+
             if post['post_type'] == 'topic'
                 {
                     id: post['topic_guid'].to_i(36),
                     title: post['title'],
-                    raw: post['content'],
+                    raw: converted_content,
                     user_id: -1, #system
                     created_at: Time.parse(post['date_created']),
                     category: category_id_from_imported_category_id(post['type']),
@@ -183,7 +189,7 @@ class ImportScripts::Osf < ImportScripts::Base
                 parent = topic_lookup_from_imported_post_id(post['reply_to'].to_i(36))
                 {
                     id: post['comment_guid'].to_i(36),
-                    raw: post['content'],
+                    raw: converted_content,
                     user_id: user_id_from_imported_user_id(post['user'].to_i(36)),
                     topic_id: parent[:topic_id],
                     reply_to_post_number: parent[:post_number],
