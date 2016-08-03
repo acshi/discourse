@@ -1,3 +1,16 @@
+# There are three separate scripts used in migrating comments from the OSF to Discourse
+# The first script is in the OSF, it can be run as
+# (1) python -m scripts.migration.migrate_to_discourse export_file
+# This file can then be imported to Discourse with
+# (2) bundle exec ruby script/import_scripts/osf.rb export_file return_file
+# which will create all of the users, categories, groups/projects, and topics
+# that were exported from the osf. The return file contains id numbers for these
+# various entities that the OSF will need to refer to them. These id numbers
+# are then reimported back into the OSF with
+# (3) python -m scripts.migration.migrate_from_discourse return_file
+# Because the osf.rb import script does not exist in the actual discourse docker container
+# The script will have to be manually added into script/import_scripts directory before executing
+
 if ARGV.length != 2 || !File.exists?(ARGV[0])
     STDERR.puts 'Usage of OSF importer:', 'bundle exec ruby osf.rb <path to file to import from osf> <path to file to export to osf>'
     STDERR.puts 'Make sure the import file exists' if ARGV.length >= 1 && !File.exists?(ARGV[0])
