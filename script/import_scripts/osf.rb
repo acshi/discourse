@@ -19,7 +19,7 @@ end
 
 require File.expand_path(File.dirname(__FILE__) + "/base.rb")
 
-require 'yajl' # streaming JSON input
+require 'json'
 require 'pry'
 
 class ImportScripts::Osf < ImportScripts::Base
@@ -53,7 +53,9 @@ class ImportScripts::Osf < ImportScripts::Base
 
         file_in = File.new(ARGV[0], 'r')
         file_out = File.new(ARGV[1], 'w')
-        Yajl::Parser.parse(file_in) do |obj|
+
+        file_in.each_line do |line|
+            obj = JSON::parse(line)
             if object_type && (obj['type'] == 'count' || objects.length >= BATCH_SIZE)
                 import_objects(objects, object_type, object_total_count, offset, file_out)
                 offset += objects.length
@@ -69,6 +71,9 @@ class ImportScripts::Osf < ImportScripts::Base
         end
 
         import_objects(objects, object_type, object_total_count, offset, file_out) if objects.length > 0
+
+        file_in.close
+        file_out.close
     end
 
     def import_categories
@@ -119,11 +124,11 @@ class ImportScripts::Osf < ImportScripts::Base
             UserAvatar.import_url_for_user(user.custom_fields['import_avatar_url'], user)
             user.save
 
-            Yajl::Encoder.encode({
+            file_out.write({
                 type: 'user',
                 guid: user_info['username'],
                 user_id: user.id,
-            }, file_out)
+            }.to_json)
             file_out.write("\n")
         end
     end
@@ -147,13 +152,13 @@ class ImportScripts::Osf < ImportScripts::Base
             raise "Visibility failed to import to group: " unless group.visible == project['is_public']
             raise "is_deleted failed to import, is: #{group.custom_fields['is_deleted']}" unless (group.custom_fields['is_deleted'] == 't') == project['is_deleted']
 
-            Yajl::Encoder.encode({
+            file_out.write({
                 type: 'project',
                 guid: project['guid'],
                 group_id: group.id,
                 group_public: project['is_public'],
                 group_users: project['contributors'],
-            }, file_out)
+            }.to_json)
             file_out.write("\n")
         end
     end
@@ -233,7 +238,7 @@ class ImportScripts::Osf < ImportScripts::Base
             raise "Project guid did not persist" unless project_guid == post_data['parent_guids'][0]
             raise "Topic guid did not persist" unless topic_guid == post_data['topic_guid']
 
-            Yajl::Encoder.encode({
+            file_out.write({
                 type: 'topic',
                 guid: topic_guid,
                 topic_id: topic.id,
@@ -241,7 +246,7 @@ class ImportScripts::Osf < ImportScripts::Base
                 topic_parent_guids: parent_guids,
                 topic_deleted: topic.deleted_at != nil,
                 post_id: post_id_from_imported_post_id(post_data['topic_guid'].to_i(36)),
-            }, file_out)
+            }.to_json)
             file_out.write("\n")
         end
 
