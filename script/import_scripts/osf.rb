@@ -120,9 +120,11 @@ class ImportScripts::Osf < ImportScripts::Base
             end
             raise "is_disabled failed to import, is: #{user.custom_fields['is_disabled']}" unless (user.custom_fields['is_disabled'] == 't') == user_info['is_disabled']
 
-            # Upload the avatar
-            UserAvatar.import_url_for_user(user.custom_fields['import_avatar_url'], user)
-            user.save
+            # Upload the avatar if needed
+            unless user.has_uploaded_avatar
+                UserAvatar.import_url_for_user(user.custom_fields['import_avatar_url'], user)
+                user.save
+            end
 
             file_out.write({
                 type: 'user',
@@ -237,6 +239,7 @@ class ImportScripts::Osf < ImportScripts::Base
             raise "Parent guids did not persist, #{parent_guids} != #{post_data['parent_guids']}" unless parent_guids == post_data['parent_guids']
             raise "Project guid did not persist" unless project_guid == post_data['parent_guids'][0]
             raise "Topic guid did not persist" unless topic_guid == post_data['topic_guid']
+            raise "Topic category did not persist" unless ["Files", "Wikis", "Projects"].include? topic.category.name
 
             file_out.write({
                 type: 'topic',
